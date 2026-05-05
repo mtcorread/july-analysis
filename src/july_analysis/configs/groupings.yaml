@@ -1,0 +1,16 @@
+# Analytical groupings of encounter types. Used by the report to slice
+# infections/encounters into named buckets (e.g. a "sexual transmission focus"
+# section). Names listed under each grouping must match the encounter_types
+# registry of the events file being analysed; mismatch is a hard error at
+# load time so renames in the simulator surface loudly here.
+#
+# Override per-run with:  july-analyze report --groupings path/to/your.yaml
+
+groupings:
+  sexual:
+    display_name: "Sexual transmission"
+    encounter_types:
+      - ooe_encounter
+      - romantic_encounters
+      - cohabiting_encounters
+      - group_sex

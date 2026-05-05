@@ -282,15 +282,25 @@ def build_report(
     output: str | Path,
     *,
     world_path: str | Path | None = None,
+    groupings_path: str | Path | None = None,
 ) -> Path:
     """Generate a self-contained HTML report for one run. Returns the output path.
 
     If ``world_path`` is provided, also streams that world_state.h5 file and
     appends a sexual-demographics section (orientation, relationship status,
     cohabiting couples) covering the *full* population.
+
+    ``groupings_path`` overrides the bundled groupings YAML (see
+    :mod:`july_analysis.groupings`). Defaults to the package config; the
+    "sexual" grouping drives the "Sexual transmission focus" section.
     """
+    from july_analysis.groupings import load_groupings, validate_against_registry
+
     store = EventStore(run_path)
     meta = store.meta()
+
+    groupings = load_groupings(groupings_path)
+    validate_against_registry(groupings, store.encounter_type_registry())
 
     inf = store.infections()
     rel = store.relationships()
@@ -303,10 +313,9 @@ def build_report(
     daily = epi.incidence_by_day(inf)
     cum = epi.cumulative_incidence(inf)
     daily_by_type = epi.incidence_by_encounter_type(inf)
-    if inf.height and "encounter_type_name" in inf.columns:
-        inf_sexual = inf.filter(
-            pl.col("encounter_type_name").is_in(list(S.SEXUAL_ENCOUNTER_TYPE_NAMES))
-        )
+    sexual_types = list(groupings["sexual"].encounter_types) if "sexual" in groupings else []
+    if inf.height and "encounter_type_name" in inf.columns and sexual_types:
+        inf_sexual = inf.filter(pl.col("encounter_type_name").is_in(sexual_types))
     else:
         inf_sexual = inf
     daily_by_type_sexual = epi.incidence_by_encounter_type(inf_sexual)

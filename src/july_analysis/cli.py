@@ -52,7 +52,11 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
 def _cmd_report(args: argparse.Namespace) -> int:
     from july_analysis.report import build_report
 
-    out = build_report(args.events, args.output, world_path=args.world)
+    out = build_report(
+        args.events, args.output,
+        world_path=args.world,
+        groupings_path=args.groupings,
+    )
     print(f"wrote {out}")
     return 0
 
@@ -101,6 +105,11 @@ def main(argv: list[str] | None = None) -> int:
         help="optional world_state.h5 — adds a sexual-demographics section "
              "(orientation, cohabiting couples, relationship status) covering "
              "the full population",
+    )
+    p_report.add_argument(
+        "--groupings", default=None,
+        help="path to a groupings YAML overriding the bundled default "
+             "(see src/july_analysis/configs/groupings.yaml)",
     )
     p_report.add_argument("-o", "--output", required=True, help="output HTML path")
     p_report.set_defaults(func=_cmd_report)

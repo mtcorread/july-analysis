@@ -78,17 +78,6 @@ DEFAULT_TRANSMISSION_MODE_LABELS: dict[int, str] = {
     1: "mode_1",
 }
 
-# --- encounter-type classification -------------------------------------------
-# Names that should be considered "sexual" contact channels for the purpose
-# of filtering transmissions/encounters. Matched against the decoded
-# encounter-type name (lower-case string), not the numeric id.
-SEXUAL_ENCOUNTER_TYPE_NAMES = frozenset({
-    "ooe_encounter",
-    "romantic_encounters",
-    "cohabiting_encounters",
-    "group_sex",
-})
-
 # Filename patterns the loader recognises inside a run directory.
 MERGED_EVENTS_FILENAME = "simulation_events.h5"
 RANK_EVENTS_GLOB = "simulation_events_rank*.h5"
