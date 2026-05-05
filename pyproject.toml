@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "july-analysis"
+version = "0.1.0"
+description = "Analysis and visualization toolkit for disease simulation event outputs, with a sexual-transmission focus."
+requires-python = ">=3.10"
+authors = [{ name = "july-analysis contributors" }]
+dependencies = [
+    "h5py>=3.8",
+    "polars>=1.0",
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+    "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+july-analyze = "july_analysis.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+july_analysis = ["templates/*.html"]
