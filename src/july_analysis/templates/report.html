@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>july-analysis report — {{ meta.path.name }}</title>
+<style>
+  :root { --fg:#222; --muted:#666; --border:#e3e3e3; --bg:#fafafa; --accent:#1f4e79; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height:1.4; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 2em 2.5em; background:white;
+    box-shadow:0 0 0 1px var(--border); }
+  h1 { font-size:1.6em; margin:0 0 0.2em; color:var(--accent); }
+  h2 { font-size:1.15em; margin-top:2em; padding-bottom:0.3em;
+    border-bottom:1px solid var(--border); color:var(--accent); }
+  h3 { font-size:0.95em; margin-top:1.5em; color:var(--muted); font-weight:600;
+    text-transform:uppercase; letter-spacing:0.05em; }
+  p.subtle { color:var(--muted); margin:0.2em 0 1em; font-size:0.88em; }
+  .scalars { display:flex; flex-wrap:wrap; gap:0.8em; margin:1em 0 1.5em; }
+  .scalar { background:var(--bg); padding:0.7em 1em; border:1px solid var(--border);
+    border-radius:4px; min-width:130px; }
+  .scalar .k { color:var(--muted); font-size:0.75em; text-transform:uppercase; letter-spacing:0.04em; }
+  .scalar .v { font-size:1.35em; font-weight:600; color:var(--fg); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5em; margin-top:1em; }
+  .grid.single { grid-template-columns:1fr; }
+  .fig { border:1px solid var(--border); padding:0.5em; background:white; }
+  .fig img { width:100%; height:auto; display:block; }
+  table { border-collapse:collapse; width:100%; margin-top:0.5em; font-size:0.85em; }
+  th, td { padding:0.35em 0.7em; border-bottom:1px solid var(--border); text-align:left; }
+  th { background:var(--bg); color:var(--muted); font-weight:600; }
+  tr:hover td { background:#f6f9fc; }
+  code { background:var(--bg); padding:0.1em 0.35em; border-radius:3px; font-size:0.88em; }
+  .note { background:#fff9e6; border:1px solid #f1d98f; padding:0.6em 1em;
+    border-radius:4px; font-size:0.85em; color:#5a4b00; margin:1em 0; }
+  footer { margin-top:3em; color:var(--muted); font-size:0.8em; text-align:center;
+    border-top:1px solid var(--border); padding-top:1em; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Simulation events report</h1>
+<p class="subtle"><code>{{ meta.path }}</code> — simulation end time
+{{ "%.2f"|format(meta.simulation_end_time or 0) }} days</p>
+
+<h2>Summary</h2>
+<div class="scalars">
+  <div class="scalar"><div class="k">Total infections</div><div class="v">{{ scalars.total_infections }}</div></div>
+  <div class="scalar"><div class="k">Seed infections</div><div class="v">{{ scalars.seed_infections }}</div></div>
+  <div class="scalar"><div class="k">True transmissions</div><div class="v">{{ scalars.transmission_events }}</div></div>
+  <div class="scalar"><div class="k">Deaths</div><div class="v">{{ scalars.total_deaths }}</div></div>
+  <div class="scalar"><div class="k">Peak day</div><div class="v">{{ scalars.peak_incidence_day }}</div></div>
+  <div class="scalar"><div class="k">Peak incidence</div><div class="v">{{ scalars.peak_incidence }}</div></div>
+  <div class="scalar"><div class="k">Relationships</div><div class="v">{{ meta.n_relationships }}</div></div>
+  <div class="scalar"><div class="k">Encounter pairs</div><div class="v">{{ meta.n_coordinated_encounters }}</div></div>
+</div>
+<h3>Encounter-type registry (from HDF5)</h3>
+<p class="subtle">
+{% for i, n in encounter_registry.items() %}<code>{{ i }}={{ n }}</code>{% if not loop.last %} &nbsp; {% endif %}{% endfor %}
+</p>
+
+<h2>Epidemic curves</h2>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.incidence }}"></div>
+  <div class="fig"><img src="data:image/png;base64,{{ figures.cumulative }}"></div>
+</div>
+<div class="grid single">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.stacked_incidence }}"></div>
+</div>
+<h3>Transmission contribution by encounter type</h3>
+<p class="subtle">Every non-seed infection, grouped by the encounter channel that
+carried it. Encounter types with zero infections in this run simply don't appear —
+e.g. <code>group_sex</code> can be absent when the sparse group-sex channel
+produced no successful transmissions over the simulation window.</p>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.contribution }}"></div>
+  <div>
+    {% if tables.encounter_contribution.0 %}
+    <table><thead><tr>{% for h in tables.encounter_contribution.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for r in tables.encounter_contribution.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+    {% endif %}
+  </div>
+</div>
+
+<h3>Where venue-contact infections happen</h3>
+<p class="subtle">Joins each non-seed infection's <code>venue_id</code> against
+the <code>/lookups/venues</code> table and groups by venue <code>type</code>
+(household, classroom, office, pub, gym, hospital, etc.). Covers all
+transmission channels, but is most interpretable for the <code>venue_contact</code>
+slice. <code>&lt;unknown&gt;</code> means the venue wasn't in the lookup.</p>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.venue_type_contribution }}"></div>
+  <div>
+    {% if tables.venue_type_contribution.0 %}
+    <table><thead><tr>{% for h in tables.venue_type_contribution.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for r in tables.venue_type_contribution.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+    {% endif %}
+  </div>
+</div>
+
+<h3>Sexual transmission focus</h3>
+<p class="subtle">Same stacked-incidence view, but filtered to just the sexual
+encounter channels: <code>cohabiting_encounters</code>, <code>romantic_encounters</code>,
+<code>ooe_encounter</code>, and <code>group_sex</code>. Useful for seeing
+how the sexual-network pathway evolves independently of the venue-contact
+background.</p>
+<div class="grid single">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.stacked_incidence_sexual }}"></div>
+</div>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.sexual_contribution }}"></div>
+  <div>
+    {% if tables.sexual_contribution.0 %}
+    <table><thead><tr>{% for h in tables.sexual_contribution.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for r in tables.sexual_contribution.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+    {% endif %}
+  </div>
+</div>
+
+<h3>Channel efficiency — events vs infections</h3>
+<p class="subtle">For every encounter type: how many real events fired
+(<code>n_events</code>, after collapsing pair-records back to one row per
+event via <code>group_id</code>), how many non-seed infections were
+attributed to that channel, and their ratio. A small
+<code>infections_per_event</code> means either low per-event transmission
+probability (contact-matrix / fomite story) OR that most events had no
+susceptible-infectious mix (eligibility / epidemic-timing story). A large
+ratio combined with a small <code>n_events</code> means the channel is
+sparse but efficient. Compare group_sex's ratio against the other
+sexual channels to sanity-check that sparse group-sex transmissions are
+consistent with the other sexual channels' per-event rates.</p>
+{% if tables.channel_efficiency.0 %}
+<table><thead><tr>{% for h in tables.channel_efficiency.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tables.channel_efficiency.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% endif %}
+<h3>Transmission contribution by transmission-mode index</h3>
+<p class="subtle">Modes 0/1 map to the sim's internal pathway enum. Pass
+<code>--transmission-modes 0=respiratory,1=physical_contact</code> to the CLI to relabel.</p>
+{% if tables.mode_contribution.0 %}
+<table><thead><tr>{% for h in tables.mode_contribution.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tables.mode_contribution.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% endif %}
+
+<h2>Transmission dynamics</h2>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.gen_time }}"></div>
+  <div class="fig"><img src="data:image/png;base64,{{ figures.reff_rolling }}"></div>
+</div>
+<h3>Effective reproduction number by encounter type</h3>
+<p class="subtle">"mean_secondary_per_infector" averages secondaries *among infectors who transmitted through this channel*, not across the whole population.</p>
+{% if tables.reff_by_encounter.0 %}
+<table><thead><tr>{% for h in tables.reff_by_encounter.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tables.reff_by_encounter.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% endif %}
+<h3>Top superspreaders</h3>
+{% if tables.top_superspreaders.0 %}
+<table><thead><tr>{% for h in tables.top_superspreaders.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tables.top_superspreaders.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% endif %}
+<h3>Time from infection to symptom onset</h3>
+{% if tables.time_to_symptom_summary.0 %}
+<table><thead><tr>{% for h in tables.time_to_symptom_summary.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tables.time_to_symptom_summary.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% endif %}
+
+<h2>Network structure</h2>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.degree }}"></div>
+  <div class="fig"><img src="data:image/png;base64,{{ figures.concurrency }}"></div>
+</div>
+<p class="note">Concurrency was computed after filtering out cohabiting-partner
+relationships at the person level (using <code>/lookups/population_networks/cohabiting_couple</code>),
+because near-permanent cohabiting partnerships otherwise dominate the count.</p>
+<div class="grid single">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.mixing }}"></div>
+</div>
+
+<h2>Encounter mix</h2>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.enc_share }}"></div>
+  <div class="fig"><img src="data:image/png;base64,{{ figures.group_sizes }}"></div>
+</div>
+<p class="note">Group-encounter reconstruction joins pair-records on
+<code>group_id</code> — a <code>uint64</code> stamped by the simulator on every
+pair-row of the same real encounter (rank-qualified in the high 16 bits for
+cross-rank uniqueness). <code>person_a</code> is always the host. Dyadic
+encounter types (romantic/cohabiting/ooe) show up as <code>size=2</code>;
+for a focused group-only view, filter to
+<code>encounter_type_name == "group_sex"</code>.</p>
+
+<h2>Profile facets</h2>
+{% if profile_facet %}
+<p class="subtle">Showing facet <code>{{ profile_facet }}</code> — loaded from
+<code>/lookups/profile_assignments/{{ profile_facet }}</code>.</p>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.profile_dist }}"></div>
+  <div>
+    {% if tables.profile_distribution.0 %}
+    <table><thead><tr>{% for h in tables.profile_distribution.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for r in tables.profile_distribution.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+    {% endif %}
+  </div>
+</div>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ figures.infections_by_infector_profile }}"></div>
+  <div class="fig"><img src="data:image/png;base64,{{ figures.infections_by_infectee_profile }}"></div>
+</div>
+<h3>R_effective by infector profile</h3>
+{% if tables.reff_by_profile.0 %}
+<table><thead><tr>{% for h in tables.reff_by_profile.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tables.reff_by_profile.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% endif %}
+{% else %}
+<p class="note">No profile facets were configured when this simulation ran —
+the <code>/lookups/profile_assignments</code> group is absent from the HDF5
+file. Configure a profile facet in the simulation YAML to populate this
+section.</p>
+{% endif %}
+
+{% if world %}
+<h2>Sexual demographics — world snapshot</h2>
+<p class="subtle">From <code>{{ world.world_path }}</code> — full population
+(orientation, cohabiting couples, relationship status), independent of
+who got infected.</p>
+<div class="scalars">
+  <div class="scalar"><div class="k">total people</div><div class="v">{{ "{:,}".format(world.world_n_people) }}</div></div>
+  <div class="scalar"><div class="k">male</div><div class="v">{{ "{:,}".format(world.world_n_male) }}</div></div>
+  <div class="scalar"><div class="k">female</div><div class="v">{{ "{:,}".format(world.world_n_female) }}</div></div>
+  <div class="scalar"><div class="k">SGUs</div><div class="v">{{ "{:,}".format(world.world_n_sgu) }}</div></div>
+  <div class="scalar"><div class="k">MGUs</div><div class="v">{{ "{:,}".format(world.world_n_mgu) }}</div></div>
+  <div class="scalar"><div class="k">LGUs</div><div class="v">{{ "{:,}".format(world.world_n_lgu) }}</div></div>
+</div>
+
+<h3>Orientation distribution</h3>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ world.world_figures.world_orientation_overall }}"></div>
+  <div class="fig"><img src="data:image/png;base64,{{ world.world_figures.world_orientation_by_sex }}"></div>
+</div>
+{% set tt = world.world_tables.world_orientation_overall %}
+<table><thead><tr>{% for h in tt.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tt.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+
+<h3>Orientation × sex</h3>
+{% set tt = world.world_tables.world_orientation_by_sex %}
+<table><thead><tr>{% for h in tt.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tt.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+
+<h3>Orientation by age band</h3>
+<div class="grid single">
+  <div class="fig"><img src="data:image/png;base64,{{ world.world_figures.world_orientation_by_age }}"></div>
+</div>
+{% set tt = world.world_tables.world_orientation_by_age %}
+<table><thead><tr>{% for h in tt.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tt.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+
+<h3>Orientation by LGU (top 30 by population)</h3>
+<div class="grid single">
+  <div class="fig"><img src="data:image/png;base64,{{ world.world_figures.world_orientation_by_lgu }}"></div>
+</div>
+{% set tt = world.world_tables.world_orientation_by_lgu %}
+<table><thead><tr>{% for h in tt.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tt.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+
+<h3>Relationship status</h3>
+<p class="subtle">Raw <code>relationship_status</code> strings as written by
+the world builder. <code>&lt;unspecified&gt;</code> covers empty-string
+entries (under-age agents).</p>
+<div class="grid single">
+  <div class="fig"><img src="data:image/png;base64,{{ world.world_figures.world_relationship_status }}"></div>
+</div>
+{% set tt = world.world_tables.world_relationship_status %}
+<table><thead><tr>{% for h in tt.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tt.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+
+<h3>Cohabiting couples</h3>
+<div class="scalars">
+  <div class="scalar"><div class="k">unique couples</div><div class="v">{{ "{:,}".format(world.world_couples) }}</div></div>
+  <div class="scalar"><div class="k">cohab. records</div><div class="v">{{ "{:,}".format(world.world_couple_records) }}</div></div>
+  <div class="scalar"><div class="k">reciprocity</div><div class="v">{{ "%.1f"|format(world.world_reciprocity_pct) }}%</div></div>
+  <div class="scalar"><div class="k">same SGU</div><div class="v">{{ "%.1f"|format(world.world_same_sgu_pct) }}%</div></div>
+  <div class="scalar"><div class="k">same LGU</div><div class="v">{{ "%.1f"|format(world.world_same_lgu_pct) }}%</div></div>
+  <div class="scalar"><div class="k">self-refs dropped</div><div class="v">{{ "{:,}".format(world.world_self_referential) }}</div></div>
+  <div class="scalar"><div class="k">partner-unknown dropped</div><div class="v">{{ "{:,}".format(world.world_partner_unknown) }}</div></div>
+</div>
+<p class="note">Reciprocity = unique couples ÷ (cohab. records ÷ 2). 100%
+means every cohabiting reference is mutual; lower numbers indicate one-way
+references the dedupe step still kept.</p>
+<div class="grid">
+  <div class="fig"><img src="data:image/png;base64,{{ world.world_figures.world_couple_sex_pairing }}"></div>
+  <div class="fig"><img src="data:image/png;base64,{{ world.world_figures.world_couple_age_diff }}"></div>
+</div>
+<h3>Couple orientation pairing</h3>
+<p class="subtle">Unordered pairs — <code>heterosexual ↔ bisexual</code>
+counts the same as <code>bisexual ↔ heterosexual</code>. A
+<code>heterosexual ↔ homosexual</code> cohabiting couple is usually a model
+bug worth investigating.</p>
+{% set tt = world.world_tables.world_couple_orientation_pairs %}
+<table><thead><tr>{% for h in tt.0 %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in tt.1 %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% endif %}
+
+<footer>Generated by <code>july-analysis</code></footer>
+</div>
+</body>
+</html>

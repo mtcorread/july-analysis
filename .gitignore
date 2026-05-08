@@ -22,4 +22,5 @@ env/
 # Run artefacts
 *.h5
 report*.html
+!src/july_analysis/templates/report*.html
 *.parquet
